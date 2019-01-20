@@ -19,23 +19,47 @@ SOFTWARE.
 """
 
 
-import cv2
 import argparse
+import os
+import cv2
 import random
 import numpy as np
 
 
-def performColorQuanitization(img, clusterCenter, noOfCluster):
+def performColorQuanitization(img, clusterCenter, K):
+    """
+    Main method which performs color quantization using K-means
+
+    Args:
+        img(str): Location of image on which color quantization is to be performed
+        clusterCenter(list): Initial cluster centers (randomly selected)
+        K(int): Number of clusters
+
+    Returns:
+        clusterCenter(list): Final cluster centers
+        classificationVector(list): Indicates to which cluster a pixel belongs to
+    """
     error = 1
     while(error > 0):
         classificationVector = classifyImagePoints(img, clusterCenter)
-        newClusterCenter = updateColor(img, classificationVector, noOfCluster)
+        newClusterCenter = updateColor(img, classificationVector, K)
         error = np.linalg.norm(newClusterCenter - clusterCenter, axis=None)
         clusterCenter = newClusterCenter
     return clusterCenter, classificationVector
 
 
 def classifyImagePoints(img, clusterCenter):
+    """
+    Computes distance of each pixel color from the cluster center and assigns pixel
+    to the closest cluster
+
+    Args:
+        img(str): Location of image on which color quantization is to be performed
+        clusterCenter(list): Initial cluster centers (randomly selected)
+
+    Returns:
+        classificationVector(list): Indicates to which cluster a pixel belongs to
+    """
     classificationVector = {}
     rows, cols = img.shape[:2]
     for row in range(rows):
@@ -47,6 +71,17 @@ def classifyImagePoints(img, clusterCenter):
 
 
 def updateColor(img, classificationVector, K):
+    """
+    Updates cluster centers by taking mean of the color of the pixel that belongs to the cluster
+
+    Args:
+        img(str): Location of image on which color quantization is to be performed
+        classificationVector(list): Indicates to which cluster a pixel belongs to
+        K(int): Number of clusters
+
+    Returns:
+        clusterCenter(list): Updated center of clusters
+    """
     clusterCenter = []
     rows, cols = img.shape[:2]
     for clusterNum in range(K):
@@ -70,20 +105,24 @@ if __name__ == "__main__":
                         help="Image for color quantization")
     args, _ = parser.parse_known_args()
     noOfCluster = args.noOfCluster.split(",")
-    for num in noOfCluster:
-        num = int(num)
+    for K in noOfCluster:
+        K = int(K)
         print("Running image quantization for K={}".format(
-              num))
+              K))
         img = cv2.imread(args.image, 1)
         clusterCenter = []
-        for i in range(num):
+        for i in range(K):
             x, y = random.sample(range(0, img.shape[0]), 2)
             clusterCenter.append(img[x, y])
         clusterCenter, classificationVector = performColorQuanitization(
-            img, clusterCenter, num)
+            img, clusterCenter, K)
         print(clusterCenter)
         rows, cols = img.shape[:2]
         for row in range(rows):
             for col in range(cols):
                 img[row, col] = clusterCenter[classificationVector[row, col]]
-        cv2.imwrite("baboon_{}.jpg".format(num), img)
+        imageBaseName = os.path.basename(args.image)
+        filename, fileExt = os.path.splitext(imageBaseName)
+        filename = "{}_{}.png".format(filename, K)
+        cv2.imwrite(filename, img)
+        print("Image size after quantization: {}".format(os.path.getsize(filename)))
